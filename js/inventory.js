@@ -552,6 +552,7 @@ function quickPromoBatch(productId, lotNumber) {
 
 // ── Inventory Table ──
 function renderInventoryTable() {
+  renderStockVelocity();
   renderSktRadarWidget();
 
   const q = (document.getElementById("invSearchInput")?.value || "").trim().toLowerCase();
@@ -568,7 +569,9 @@ function renderInventoryTable() {
     const catMatch = (cat === "TÜMÜ" || !cat || normFn(prodCat) === normFn(cat));
     const prodName = (p.name || "").toLowerCase();
     const nameMatch = prodName.includes(q) || (p.barcode && String(p.barcode).toLowerCase().includes(q));
-    return catMatch && nameMatch;
+    const filter=document.getElementById("invStockFilter")?.value;
+    const stock=Number(p.stock)||0;
+    return catMatch && nameMatch && (!filter || (filter==="low" && stock<=Number(p.safetyStock??2)) || (filter==="empty" && stock<=0) || (filter==="available" && stock>0));
   });
 
   if (filtered.length === 0) {
@@ -591,9 +594,9 @@ function renderInventoryTable() {
 
   const activeCats = (typeof getActiveCategories === "function") ? getActiveCategories() : (window.categories || categories || ["Kedi", "Köpek", "Kuş / Kemirgen", "Açık Mama", "Kum", "Kozmetik", "Kampanyalar", "elekli paspas"]);
 
-  const lightActive = (typeof isLightMode === "function" && isLightMode());
-  const searchQ = (document.getElementById("invSearchInput")?.value || "").trim();
-  const limit = (!lightActive || (searchQ && searchQ.length > 0)) ? filtered.length : (window.invTableLimit || 50);
+  const filterKey = q + "|" + cat + "|" + sortVal;
+  if(window.invFilterKey !== filterKey){window.invTableLimit=50;window.invFilterKey=filterKey;}
+  const limit = window.invTableLimit || 50;
   const itemsToRender = filtered.slice(0, limit);
 
   const rowsHtml = itemsToRender.map(p => {
@@ -663,7 +666,7 @@ function renderInventoryTable() {
   }).join('');
 
   let moreRow = "";
-  if (lightActive && filtered.length > limit) {
+  if (filtered.length > limit) {
     const remaining = filtered.length - limit;
     moreRow = `
       <tr>
@@ -1260,8 +1263,7 @@ function saveWasteRecord() {
   const p = products.find(prod => prod.id === prodId);
   if (!p || isNaN(qty) || qty <= 0) return toast("Geçerli ürün ve adet girin!", "error");
 
-  p.stock -= qty;
-  wasteRecords.unshift({ id: Date.now(), date: nowDate(), time: nowTime(), productName: p.name, qty, unitCost: p.cost || 0, totalLoss: qty * (p.cost || 0), reason, note });
+  try{BlueStock.waste({products,wasteRecords},p.id,qty,reason,note);}catch(error){return toast(error.message,"warning");}
   closeModal("addWasteModal"); saveData(); renderCatalog(); renderInventoryTable(); renderWasteTable();
   toast(`🗑️ ${qty}x "${p.name}" zayi olarak düşüldü!`);
 }

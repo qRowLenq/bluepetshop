@@ -16,8 +16,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
     rel="stylesheet">
-  <title>🐾 Petshop Kasa Sistemi</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260908_3">
+  <title>Bluepetshop · Kasa ve Stok</title>
+  <link rel="stylesheet" href="css/styles.css?v=20261121_shop1">
+  <link rel="stylesheet" href="css/sales-history.css?v=20261121_shop1">
+<link rel="stylesheet" href="css/panel-tools.css?v=20261121_shop1">
 </head>
 
 <body>
@@ -40,7 +42,7 @@
     </div>
 
     <div class="header-actions">
-      <button id="posModeToggleBtn" class="btn btn-ghost btn-sm" onclick="togglePosPerformanceMode()" style="font-weight:600; font-size:12px;"></button>
+      <button class="btn btn-outline btn-sm" onclick="openSalesHistory()">Satış Geçmişi</button>
       <button class="btn btn-warning btn-sm" onclick="openDailyCloseModal()">🏁 Gün Sonu</button>
       <button class="btn btn-ghost btn-sm" onclick="exportData()">💾 Yedek Al</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer; margin:0;"
@@ -80,12 +82,13 @@
         </div>
         <div id="productGrid" class="product-grid"></div>
 
+        <div id="panelFavorites" class="panel-tools-bar" hidden></div>
         <div class="recent-sales-box mt-2" id="posRecentSalesContainer">
           <div class="rs-header flex justify-between items-center mb-2 flex-wrap gap-2" style="cursor:pointer;"
             onclick="toggleRecentSalesBox()">
             <div class="flex items-center gap-2">
               <span id="posRecentSalesToggleIcon" style="font-size:12px; transition:transform 0.2s;">▶</span>
-              <b>📜 Son Satışlar & Günlük Gelir (Bugün)</b>
+              <b>📜 Satış Geçmişi & İadeler</b>
               <span id="posDayStatusBadge" class="badge"
                 style="font-size:10.5px; background:#dcfce7; color:#166534; border:1px solid #bbf7d0;">🟢 Gün
                 Açık</span>
@@ -98,6 +101,7 @@
           </div>
 
           <div id="posRecentSalesBody" style="display:none;">
+            <p class="history-note" id="historyDailyLabel"></p>
             <!-- Gün Sonu Kapatıldı Bildirimi (Kapatıldığında Görünür ve Geri Aç Butonu Sunar) -->
             <div id="posClosedNoticeBox" style="display:none; margin-bottom:10px;"></div>
 
@@ -127,8 +131,26 @@
             </div>
 
             <!-- Kaydırılabilir ve sınırlandırılmış satış listesi (iade butonuyla birlikte ekranı kaplamaz) -->
-            <div id="posRecentSalesList" class="flex-col gap-2"
-              style="max-height:220px; overflow-y:auto; padding-right:4px;"></div>
+            <div class="history-filters">
+              <label>Başlangıç<input type="date" id="historyStart" onchange="refreshHistoryFilters(true)"></label>
+              <label>Bitiş<input type="date" id="historyEnd" onchange="refreshHistoryFilters(true)"></label>
+              <label class="history-search-label">Ürün, barkod, müşteri veya kayıt no<input type="search" id="historySearch" placeholder="Geçmiş satışlarda ara…" oninput="refreshHistoryFilters()"></label>
+            </div>
+            <div class="history-presets">
+              <button class="btn btn-outline btn-sm" data-history-period="today" onclick="setHistoryPeriod('today')">Bugün</button>
+              <button class="btn btn-outline btn-sm" data-history-period="yesterday" onclick="setHistoryPeriod('yesterday')">Dün</button>
+              <button class="btn btn-outline btn-sm" data-history-period="week" onclick="setHistoryPeriod('week')">Son 7 gün</button>
+              <button class="btn btn-outline btn-sm" data-history-period="all" onclick="setHistoryPeriod('all')">Tüm geçmiş</button>
+            </div>
+            <div class="history-scroll-help">
+              <span id="historyResultCount" role="status" aria-live="polite"></span>
+              <span>Uzun satışları sağa kaydırarak görebilirsin.
+                <button class="btn btn-outline btn-xs" aria-label="Satış tablosunu sola kaydır" onclick="document.getElementById('posRecentSalesList').scrollBy({left:-400,behavior:'smooth'})">←</button>
+                <button class="btn btn-outline btn-xs" aria-label="Satış tablosunu sağa kaydır" onclick="document.getElementById('posRecentSalesList').scrollBy({left:400,behavior:'smooth'})">→</button>
+              </span>
+            </div>
+            <div id="posRecentSalesList" class="history-scroll" tabindex="0" role="region" aria-label="Satış geçmişi; uzun satırlar için sağa kaydır"></div>
+            <button id="historyLoadMore" class="btn btn-outline btn-sm history-more" hidden onclick="window.salesHistoryLimit = (window.salesHistoryLimit || 20) + 30; renderSalesHistoryRows();">Daha fazla göster</button>
           </div>
         </div>
       </div>
@@ -146,6 +168,8 @@
         <div style="padding:10px 14px 0 14px;">
           <select id="cartCustomerSelect" class="cart-customer-select"></select>
         </div>
+        <div class="panel-tools-bar"><button class="btn btn-outline btn-xs" onclick="newPanelCart()">Yeni sepet · F4</button> <button class="btn btn-outline btn-xs" onclick="openPanelSimulation()">POS Simülasyonu</button><small>F2 Barkod · F6 Bekleyen sepetler</small></div>
+          <div id="stockCheckoutWarning" class="stock-checkout-warning" role="status" aria-live="polite" hidden></div>
         <div id="cartItems" class="cart-items"></div>
 
         <div class="cart-footer">
@@ -203,6 +227,7 @@
                 🏷️ İndirim Yap
               </button>
             </div>
+            <button class="btn btn-outline btn-wide" onclick="setHistoryPeriod('all'); if(document.getElementById('posRecentSalesBody').style.display==='none') toggleRecentSalesBox(); document.getElementById('posRecentSalesContainer').scrollIntoView()">Satış geçmişinden iade</button>
             <button class="btn btn-warning btn-wide" onclick="openDispatchModal()">🛵 Gidecek Siparişe Ekle</button>
           </div>
         </div>
@@ -258,6 +283,7 @@
     <!-- 3. ENVANTER -->
     <section id="tab-inventory" class="tab-pane subtabs-container">
       <div class="subtabs-header">
+        <button class="subtab-btn" data-sub="alerts" onclick="switchInvSubtab('alerts')">🔔 Stok Uyarıları & İhtiyaçlar</button>
         <button class="subtab-btn active" data-sub="stock" onclick="switchInvSubtab('stock')">📦 Stok & Fiyat
           Listesi</button>
         <button class="subtab-btn" data-sub="quick-pricing"
@@ -268,6 +294,52 @@
       </div>
 
       <div id="subtab-inv-stock" class="subtab-view active">
+        <div class="flex gap-2 mb-3 items-center flex-wrap">
+          <input type="text" id="invSearchInput" class="search-input" placeholder="🔍 Ürün Ara..."
+            oninput="renderInventoryTable()">
+          <select id="invCatFilter" class="fc" style="width:190px;" onchange="renderInventoryTable()"></select>
+          <select id="invSortSelect" class="fc" style="width:160px;" onchange="renderInventoryTable()" title="Sıralama">
+            <option value="name-asc" selected>🔤 İsim (A-Z)</option>
+            <option value="name-desc">🔤 İsim (Z-A)</option>
+            <option value="stock-desc">📦 Stok (Azalan)</option>
+            <option value="stock-asc">📦 Stok (Artan)</option>
+            <option value="price-desc">💰 Fiyat (Azalan)</option>
+            <option value="price-asc">💰 Fiyat (Artan)</option>
+            <option value="cost-desc">📥 Maliyet (Azalan)</option>
+            <option value="id-desc">🕒 Son Eklenenler</option>
+          </select>
+          <select id="invStockFilter" class="fc" aria-label="Stok durumu" onchange="renderInventoryTable()"><option value="">Tüm stoklar</option><option value="low">Kritik stok</option><option value="empty">Tükenenler</option><option value="available">Stokta olanlar</option></select>
+          <button class="btn btn-outline" onclick="openProductSplit()">Ürün Bölme</button>
+          <button class="btn btn-outline" onclick="panelId('panelImportDialog').showModal()">Excel / CSV</button>
+          <button class="btn btn-primary" onclick="openAddProductModal()">+ Yeni Ürün Ekle</button>
+          <button class="btn btn-warning"
+            onclick="switchInvSubtab('quick-pricing'); if (window.renderQuickPricingTable) window.renderQuickPricingTable();">⚡
+            Toplu / Hızlı Düzenle</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ürün Adı</th>
+              <th>Kategori</th>
+              <th>Tedarikçi</th>
+              <th>Alış Maliyeti</th>
+              <th>Satış Fiyatı</th>
+              <th>KDV</th>
+              <th>Kâr Marjı</th>
+              <th>Stok</th>
+              <th>İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryTableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="subtab-inv-alerts" class="subtab-view">
+        <section class="stock-velocity-panel">
+          <h3>Satış hızına göre stok uyarıları <small id="stockVelocityCount"></small></h3>
+          <p>Son 30 günün net satış ortalamasına göre 7 gün veya daha az yetecek stoklar. Yeni kayıtlarda mevcut gün sayısı kullanılır; iadeler satış miktarından düşülür. Bu bir tahmindir. Satış geçmişi olmayan ürünlerde 2 adet ve altı gösterilir.</p>
+          <div id="stockVelocityList"></div>
+        </section>
         <!-- 🛰️ SKT RADARI (FIFO EXPIRY RADAR WIDGET) -->
         <div class="skt-radar-container" id="sktRadarContainer">
           <div class="skt-radar-header">
@@ -297,41 +369,19 @@
           <div id="sktRadarBatchList" class="skt-batch-list"></div>
         </div>
 
-        <div class="flex gap-2 mb-3 items-center flex-wrap">
-          <input type="text" id="invSearchInput" class="search-input" placeholder="🔍 Ürün Ara..."
-            oninput="renderInventoryTable()">
-          <select id="invCatFilter" class="fc" style="width:190px;" onchange="renderInventoryTable()"></select>
-          <select id="invSortSelect" class="fc" style="width:160px;" onchange="renderInventoryTable()" title="Sıralama">
-            <option value="name-asc" selected>🔤 İsim (A-Z)</option>
-            <option value="name-desc">🔤 İsim (Z-A)</option>
-            <option value="stock-desc">📦 Stok (Azalan)</option>
-            <option value="stock-asc">📦 Stok (Artan)</option>
-            <option value="price-desc">💰 Fiyat (Azalan)</option>
-            <option value="price-asc">💰 Fiyat (Artan)</option>
-            <option value="cost-desc">📥 Maliyet (Azalan)</option>
-            <option value="id-desc">🕒 Son Eklenenler</option>
-          </select>
-          <button class="btn btn-primary" onclick="openAddProductModal()">+ Yeni Ürün Ekle</button>
-          <button class="btn btn-warning"
-            onclick="switchInvSubtab('quick-pricing'); if (window.renderQuickPricingTable) window.renderQuickPricingTable();">⚡
-            Toplu / Hızlı Düzenle</button>
-        </div>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Ürün Adı</th>
-              <th>Kategori</th>
-              <th>Tedarikçi</th>
-              <th>Alış Maliyeti</th>
-              <th>Satış Fiyatı</th>
-              <th>KDV</th>
-              <th>Kâr Marjı</th>
-              <th>Stok</th>
-              <th>İşlemler</th>
-            </tr>
-          </thead>
-          <tbody id="inventoryTableBody"></tbody>
-        </table>
+        <section class="stock-needs-panel">
+          <h3>İhtiyaç Listesi <small id="stockNeedsCount"></small></h3>
+          <p>Uyarılardan eklediğin ürünler burada saklanır. Tedarik & Toptancı bölümündeki eksik listesiyle aynı listedir.</p>
+          <form class="stock-needs-entry" onsubmit="event.preventDefault(); addStockManualNeed();">
+            <label for="stockManualNeed">Aklına gelen ürün veya ihtiyaç</label>
+            <div class="flex gap-2 flex-wrap">
+              <input id="stockManualNeed" class="fc" maxlength="200" placeholder="Örn: taşıma çantası, yeni marka mama…" required>
+              <button type="submit" class="btn btn-primary btn-sm">+ İhtiyaç ekle</button>
+            </div>
+          </form>
+          <button class="btn btn-outline btn-sm" onclick="copyDeficits('all')">Bekleyen ihtiyaçları kopyala</button>
+          <div id="stockNeedsList"></div>
+        </section>
       </div>
 
       <!-- ⚡ HIZLI FİYAT & STOK GİRİŞİ (QUICK BULK PRICING & STOCK MANAGER) -->
@@ -1636,27 +1686,39 @@
   <!-- Add Expense Modal (Advanced Tax Shield & Expense Engine) -->
   <div class="modal-overlay" id="addExpenseModal">
     <div class="modal-box" style="max-width:500px;">
-      <div class="modal-title" id="expModalTitle">💸 Yeni Gider & Vergi Kalkanı Girişi</div>
+      <div class="modal-title" id="expModalTitle">💸 Yeni Gider Kaydı</div>
+      <p class="expense-form-intro">İşletme için yaptığın harcamayı kaydet. Önce gider türünü, ödediğin toplam tutarı ve paranın hangi hesaptan çıktığını seç.</p>
+      <details class="expense-form-guide" id="expenseFormGuide">
+        <summary>Bu alanlar ne işe yarar?</summary>
+        <dl>
+          <dt>Gider türü ve gider adı</dt><dd>Tür, raporda harcamaları gruplar. Gider adı ise “Elektrik faturası” veya “Fiş rulosu” gibi ne aldığını belirtir. Satılacak ürün alımlarını “Yeni Mal / Fatura Girişi” ile kaydet.</dd>
+          <dt>Ödeme yöntemi</dt><dd>Paranın kasadan, banka hesabından, şahsi hesaptan veya kredi kartından çıktığını belirtir. Bu seçim banka işlemi gerçekleştirmez.</dd>
+          <dt>Belge ve KDV</dt><dd>Belgen varsa işaretle; KDV oranını belgedeki bilgiye göre seç. Toplam tutar KDV dahil girilir; KDV tutarını sistem hesaplar. Dekont bulunması tek başına KDV indirimi anlamına gelmez.</dd>
+          <dt>Hesaplama özeti</dt><dd>KDV hariç tutar, KDV ayrıldıktan kalan tutardır. İndirilebilecek KDV ve matrah indirimi, uygulamanın mevcut varsayımlarıyla hesaplanan tahminlerdir; ödenecek vergi veya kesin vergi tasarrufu değildir.</dd>
+        </dl>
+        <p class="expense-field-help">Vergiyle ilgili sonuçları muhasebecinle kontrol et. Bu ekran resmi beyanname hazırlamaz.</p>
+      </details>
       <input type="hidden" id="expIsMajor">
 
       <!-- Ana Kategori / Vergi Kalkanı Kategorisi -->
       <div class="fg">
-        <label>Ana Kategori (Vergi Kalkanı Mantığı)</label>
-        <select id="expMainCategory" class="fc font-bold" onchange="handleExpenseCategoryChange()">
-          <option value="Genel Dükkân / Sarf">🛍️ Genel Dükkân / Sarf (%100 Matrah İndirimi + Tam KDV)</option>
-          <option value="Binek Taşıt & Akaryakıt">🚗 Binek Taşıt & Akaryakıt (%70 Matrah, %30 KKEG Kısıtı)</option>
-          <option value="Banka & POS Komisyon Kesintisi">💳 Banka & POS Komisyon Kesintisi (%100 Finansman)</option>
-          <option value="Sabit Kira / Stopaj">🏢 Sabit Kira / Stopaj (%20 Stopaj Takibi İle)</option>
-          <option value="Demirbaş Alımı">🛠️ Demirbaş Alımı (&gt; 12.000 TL Amortisman Kuralı)</option>
+        <label for="expMainCategory">Gider Türü</label>
+        <select id="expMainCategory" class="fc font-bold" aria-describedby="expCategoryHelp" onchange="handleExpenseCategoryChange()">
+          <option value="Genel Dükkân / Sarf">🛍️ Dükkân ihtiyaçları / Sarf malzemesi</option>
+          <option value="Binek Taşıt & Akaryakıt">🚗 Araç / Akaryakıt</option>
+          <option value="Banka & POS Komisyon Kesintisi">💳 Banka / POS komisyonu</option>
+          <option value="Sabit Kira / Stopaj">🏢 Kira / Stopaj</option>
+          <option value="Demirbaş Alımı">🛠️ Demirbaş / Ekipman</option>
           <option value="Personel Maaşı & SGK">👥 Personel Maaşı & SGK / Yemek</option>
           <option value="Diğer">📌 Diğer İşletme Gideri</option>
         </select>
+        <small id="expCategoryHelp" class="expense-field-help" aria-live="polite">Temizlik, poşet, kırtasiye ve fiş rulosu gibi dükkân ihtiyaçları.</small>
       </div>
 
       <!-- Alt Tür / Gider Kalemi -->
       <div class="form-row form-row-2">
         <div class="fg">
-          <label>Alt Tür (Gider Kalemi)</label>
+          <label for="expSubType">Gider Adı</label>
           <input type="text" id="expSubType" class="fc" placeholder="Örn: Kira, Mazot, Elektrik..."
             list="expSubTypesList">
           <datalist id="expSubTypesList">
@@ -1686,7 +1748,7 @@
       <!-- Tutar & Açıklama -->
       <div class="form-row form-row-2">
         <div class="fg">
-          <label>Tutar (₺ - KDV Dahil)</label>
+          <label for="expAmount">Ödenen Toplam (₺ · KDV Dahil)</label>
           <input type="number" id="expAmount" class="fc font-bold" placeholder="Örn: 1500" step="any"
             oninput="calculateExpenseTaxShieldLive()">
         </div>
@@ -1702,7 +1764,7 @@
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; margin-bottom:0;">
           <input type="checkbox" id="expHasVat" checked onchange="toggleExpenseVatInputs()"
             style="width:16px; height:16px; cursor:pointer;">
-          <span>🧾 Fatura / Fiş / Dekont Mevcut (Resmi Gider)</span>
+          <span>🧾 Harcamaya ait belge var</span>
         </label>
         <div id="expVatInputsContainer" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);">
           <div class="form-row form-row-2">
@@ -1737,11 +1799,11 @@
           <b id="expNetAmtDisplay">0.00 ₺</b>
         </div>
         <div class="tax-shield-row" style="color:var(--primary);">
-          <span>Mahsup Edilebilir KDV Tutarı:</span>
+          <span>Tahmini İndirilebilecek KDV:</span>
           <b id="expDeductibleVatDisplay">0.00 ₺</b>
         </div>
         <div class="tax-shield-row" style="color:#16a34a;">
-          <span>🛡️ Vergi Matrah İndirimi:</span>
+          <span>Tahmini Matrah İndirimi:</span>
           <b id="expTaxDeductionDisplay">0.00 ₺</b>
         </div>
         <div class="tax-shield-row" id="expKkegRow" style="display:none; color:#dc2626;">
@@ -1756,7 +1818,7 @@
 
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closeModal('addExpenseModal')">İptal</button>
-        <button class="btn btn-primary" onclick="saveExpense()">Kaydet & Senkronize Et</button>
+        <button class="btn btn-primary" onclick="saveExpense()">Gideri Kaydet</button>
       </div>
     </div>
   </div>
@@ -2026,16 +2088,69 @@
   </script>
 
   <!-- Scripts with Fresh Cache-Buster Version -->
-  <script src="js/products_catalog.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/state.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/ui.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/pos.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/orders.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/inventory.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/crm.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/procurement.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/expenses.js?v=20260920_perf_turbo_v321"></script>
-  <script src="js/app.js?v=20260920_perf_turbo_v321"></script>
+  <dialog id="salesHistoryDialog" class="history-dialog history-browser" aria-labelledby="salesHistoryTitle">
+    <div class="history-dialog-header"><h2 id="salesHistoryTitle">Satış Geçmişi & İadeler</h2><button class="btn btn-outline btn-sm" onclick="document.getElementById('salesHistoryDialog').close()">Kapat ✕</button></div>
+    <div id="salesHistoryMount"></div>
+  </dialog>
+  <dialog id="cartRefundDialog" class="history-dialog" aria-labelledby="cartRefundTitle">
+    <div class="history-dialog-header"><h2 id="cartRefundTitle">Sepetten ürün iadesi</h2><button class="btn btn-outline btn-sm" onclick="document.getElementById('cartRefundDialog').close()">Vazgeç ✕</button></div>
+    <p class="history-note">Eski satış kaydı gerekmez. İade birim fiyatlarını kontrol et; değiştirmek için bu pencereyi kapatıp sepetteki “İndirim / Fiyat” düğmesini kullan.</p>
+    <p id="cartRefundDay" class="history-note"></p>
+    <div id="cartRefundItems" class="history-detail-scroll" tabindex="0" role="region" aria-label="İade edilecek ürünler"></div>
+    <form class="history-refund-controls" onsubmit="completeCartRefund(event)">
+      <label>Geri ödeme<select id="cartRefundMethod" onchange="updateCartRefundMethod()"><option>Nakit</option><option>Kredi Kartı</option><option>Havale / IBAN</option><option value="Veresiye">Veresiye borcundan düş</option></select></label>
+      <label>Eski satışın fiş durumu<select id="cartRefundReceipt" required><option value="">Seçiniz</option><option value="official">Fişli</option><option value="unofficial">Fişsiz</option></select></label>
+      <strong id="cartRefundTotal"></strong><button id="completeCartRefundButton" type="submit" class="btn btn-danger">İadeyi kaydet</button>
+      <p class="history-note">Nakit ve havalede seçtiğin fişli/fişsiz toplamdan düşülür. Kart iadeleri kart toplamını azaltır. Ürünler stoğa geri eklenir.</p>
+    </form>
+    <p id="cartRefundError" class="history-dialog-error" role="alert"></p>
+  </dialog>
+  <dialog id="saleDetailsDialog" class="history-dialog" aria-labelledby="saleDetailsTitle">
+    <div class="history-dialog-header"><h2 id="saleDetailsTitle">Satış detayı</h2><button class="btn btn-outline btn-sm" onclick="document.getElementById('saleDetailsDialog').close()" aria-label="Satış detayını kapat">Kapat ✕</button></div>
+    <p class="history-note" id="saleDetailsMeta"></p>
+    <p class="history-note" id="saleDetailNotice"></p>
+    <div id="saleDetailsItems" class="history-detail-scroll" tabindex="0" role="region" aria-label="Satılan ürünler; gerekirse sağa kaydır"></div>
+    <form id="saleRefundControls" class="history-refund-controls" hidden onsubmit="completeSelectedRefund(event)">
+      <p id="refundProductName" style="flex-basis:100%;font-weight:700"></p>
+      <label>İade adedi<input id="refundQuantity" type="number" min="0.001" step="any" required oninput="updateRefundPreview()" style="width:90px;padding:9px;border:1px solid var(--border);border-radius:8px"></label>
+      <label>Ürün durumu<select id="refundCondition" required><option value="">Seçiniz</option><option value="sellable">Yeniden satılabilir</option><option value="damaged">Hasarlı → Fire / Zayi</option></select></label>
+      <label>Geri ödeme<select id="refundMethod"><option>Nakit</option><option>Kredi Kartı</option><option>Havale / IBAN</option><option value="Veresiye">Veresiye borcundan düş</option></select></label>
+      <label>Eski satışın fiş durumu<select id="refundReceipt" required><option value="">Seçiniz</option><option value="official">Fişli</option><option value="unofficial">Fişsiz</option></select></label>
+      <strong id="refundSelectionTotal">0,00 ₺</strong>
+      <button id="completeRefundButton" type="submit" class="btn btn-danger">İadeyi tamamla</button>
+      <small class="history-note" style="flex-basis:100%">Nakit, kart veya havale seçimi ilgili gün toplamını azaltır. Tahsil edilmemiş veresiye için “Veresiye borcundan düş” seçeneğini kullan.</small>
+    </form>
+    <p id="refundError" class="history-dialog-error" role="alert"></p>
+  </dialog>
+  <dialog id="productSplitDialog" class="panel-tool-dialog"><h2>Ürün Bölme</h2><form id="productSplitForm" onsubmit="saveProductSplit(event)">
+<fieldset><legend>Bölünecek ürün</legend><label>Ad veya barkodla ara<input id="searchSource" oninput="fillSplitPicker('Source')"></label><label>Stok kartı<select id="splitSource" required onchange="renderSplitPreview()"></select></label><label>Kaç tane açıldı?<input id="splitOpened" type="number" value="1" min="1" step="1" required oninput="renderSplitPreview()"></label><strong id="previewSource"></strong></fieldset>
+<fieldset><legend>Oluşan ürün</legend><label>Ad veya barkodla ara<input id="searchTarget" oninput="fillSplitPicker('Target')"></label><label>Stok kartı<select id="splitTarget" required onchange="renderSplitPreview()"></select></label><label>Kaç tane çıktı?<input id="splitProduced" type="number" min="1" step="1" required oninput="renderSplitPreview()"></label><strong id="previewTarget"></strong></fieldset>
+<label>İşlemi yapan kişi<input id="splitActor" required maxlength="80"></label><p id="splitMessage" role="status"></p><button id="productSplitSave" class="btn btn-primary">Bölmeyi kaydet</button> <button type="button" class="btn btn-outline" onclick="this.closest('dialog').close()">Kapat</button></form><details><summary>Stok hareket geçmişi</summary><ul id="splitHistory"></ul></details></dialog>
+<dialog id="panelImportDialog" class="panel-tool-dialog"><h2>Excel / CSV</h2><p>İndirilen dosya, o andaki stok kopyasıdır. Güncel liste için yeniden indirin. Excel’de barkod sütununu metin olarak tutun.</p><div class="panel-tools-bar">
+<button class="btn btn-outline" onclick="panelDownload('xlsx',true)">Excel şablonu</button><button class="btn btn-outline" onclick="panelDownload('csv',true)">CSV şablonu</button><button class="btn btn-outline" onclick="panelDownload('xlsx')">Excel indir</button><button class="btn btn-outline" onclick="panelDownload('csv')">CSV indir</button></div>
+<label>İşlem<select id="importMode" onchange="resetPanelImport()"><option value="add">Yeni ürün ekle</option><option value="update">Ürün bilgilerini güncelle</option><option value="stock">Stok düzelt · hedef adet</option></select></label><label>Dosya<input type="file" id="importFile" accept=".csv,.xlsx" onchange="readPanelImport()"></label><div id="importFields" class="panel-tools-bar"></div><button class="btn btn-outline" onclick="previewPanelImport()">Önizle</button> <button id="importConfirm" class="btn btn-primary" disabled onclick="applyPanelImport()">Geçerli satırları onayla</button> <button class="btn btn-outline" onclick="this.closest('dialog').close()">Kapat</button><p id="importMessage" role="status"></p><div class="panel-preview-scroll"><table class="data-table"><thead><tr><th>Satır</th><th>Barkod</th><th>Ürün</th><th>Stok</th><th>Durum</th></tr></thead><tbody id="importPreview"></tbody></table></div></dialog>
+<dialog id="panelSimDialog" class="panel-tool-dialog"><h2>POS Simülasyonu</h2><p>Sepetin kopyasıyla çalışır. Gerçek tahsilat yapmaz; kasa ve stok kayıtlarını değiştirmez.</p><p id="simItems"></p><label>Simülasyonda alınan nakit (₺) <input id="simCash" type="number" min="0" step="0.01" placeholder="0,00"></label><p id="simStatus" role="status"></p><p id="simResult" role="status"></p><button id="simSend" class="btn btn-primary" onclick="panelSimAction('send')">POS’a gönder</button> <button class="btn btn-outline" onclick="this.closest('dialog').close()">Kapat</button><div id="simActions" class="panel-tools-bar"><button class="btn btn-outline" data-sim="approved">Onay</button><button class="btn btn-outline" data-sim="rejected">Ret</button><button class="btn btn-outline" data-sim="cancelled">İptal</button><button class="btn btn-outline" data-sim="disconnect">Bağlantıyı kes</button><button class="btn btn-outline" data-sim="query">Sonucu sorgula</button><button class="btn btn-outline" data-sim="repeat">Yanıtı tekrar gönder</button></div></dialog>
+<script src="js/products_catalog.js?v=20260920_perf_turbo_v321"></script>
+  <script src="js/state.js?v=20261121_shop1"></script>
+  <script src="js/store-storage.js?v=20261121_shop1"></script>
+  <script src="js/ui.js?v=20261121_shop1"></script>
+  <script src="js/stock-flow.js?v=20261121_shop1"></script>
+  <script src="js/pos.js?v=20261121_shop1"></script>
+  <script src="js/orders.js?v=20261121_shop1"></script>
+  <script src="js/inventory.js?v=20261121_shop1"></script>
+  <script src="js/crm.js?v=20261121_shop1"></script>
+  <script src="js/procurement.js?v=20261121_shop1"></script>
+  <script src="js/expenses.js?v=20261121_shop1"></script>
+  <script src="js/sales-history.js?v=20261121_shop1"></script>
+  <script src="js/refunds.js?v=20261121_shop1"></script>
+  <script src="js/stock-domain.js?v=20261121_shop1"></script>
+  <script src="js/terminal-simulator.js?v=20261121_shop1"></script>
+  <script src="js/simulation-engine.js?v=20261121_shop1"></script>
+  <script src="js/import-export.js?v=20261121_shop1"></script>
+  <script src="js/store-summary.js?v=20261121_shop1"></script>
+  <script src="js/excel.js?v=20261121_shop1"></script>
+  <script src="js/panel-tools.js?v=20261121_shop1"></script>
+  <script src="js/app.js?v=20261121_shop1"></script>
 </body>
 
 </html>

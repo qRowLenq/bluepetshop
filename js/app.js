@@ -529,14 +529,24 @@ function reopenDailyCloseById(closeId) {
 }
 
 // ── Backup System ──
-function exportData() {
-  saveData();
-  const data = {
+function getFullReportSnapshot() {
+  return {
     categories, products, customers, suppliers,
     orders, platformPendingOrders, deliveredOrders,
     salesHistory, expenses, manualDeficits, heldCarts,
-    bundles, wasteRecords, exportDate: new Date().toISOString()
+    bundles, wasteRecords, dailyCloseRecords,
+    activeBusinessDate: localStorage.getItem('ps_active_business_date'),
+    reportDate: nowDate(),
+    reportSource: window.aybarsDesktop ? 'Windows mağaza verisi' : 'Bluepetshop mağaza yedeği',
+    financialOverview: typeof calculateDualFinancialOverview === 'function' ? calculateDualFinancialOverview() : null,
+    exportDate: new Date().toISOString()
   };
+}
+
+function exportData() {
+  saveData();
+  const data = getFullReportSnapshot();
+
   const jsonStr = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -620,6 +630,9 @@ function importData(event) {
     }
 
     try {
+      if (!data || !Array.isArray(data.products) || !Array.isArray(data.salesHistory) || !Array.isArray(data.expenses)) throw Error("Ürün, satış ve gider listelerini içeren bir mağaza yedeği seçin.");
+      const after=Date.parse(data.exportDate || "");
+      if (!confirm("Bu işlem yalnızca bu tarayıcıdaki mağaza kayıtlarını seçilen yedekle değiştirir. Önce mevcut verileri yedekleyin.\n\nYedek: "+(Number.isFinite(after)?new Date(after).toLocaleString("tr-TR"):"tarih belirtilmedi")+"\n"+data.products.length+" ürün, "+data.salesHistory.length+" satış/iade kaydı, "+data.expenses.length+" gider.\n\nDevam edilsin mi?")) { event.target.value=""; return; }
       if (Array.isArray(data.categories) && data.categories.length > 0) {
         categories = data.categories;
         window.categories = data.categories;
@@ -646,6 +659,8 @@ function importData(event) {
       if (data.heldCarts) { heldCarts = data.heldCarts; window.heldCarts = data.heldCarts; }
       if (data.bundles) { bundles = data.bundles; window.bundles = data.bundles; }
       if (data.wasteRecords) { wasteRecords = data.wasteRecords; window.wasteRecords = data.wasteRecords; }
+      if (Array.isArray(data.dailyCloseRecords)) { dailyCloseRecords = data.dailyCloseRecords; window.dailyCloseRecords = data.dailyCloseRecords; }
+      if (data.activeBusinessDate && /^\d{2}\.\d{2}\.\d{4}$/.test(data.activeBusinessDate)) localStorage.setItem('ps_active_business_date', data.activeBusinessDate);
       
       saveData();
       initializeApp();
@@ -666,6 +681,7 @@ function initializeApp() {
   try { initCategoryBar(); } catch(e) { console.error("initCategoryBar error:", e); }
   try { populateCategoryDropdowns(); } catch(e) { console.error("populateCategoryDropdowns error:", e); }
   try { renderCatalog(); } catch(e) { console.error("renderCatalog error:", e); }
+  try { renderPanelFavorites(); } catch(e) { console.error("renderPanelFavorites error:", e); }
   try { renderCart(); } catch(e) { console.error("renderCart error:", e); }
   try { renderPosSalesHistory(); } catch(e) { console.error("renderPosSalesHistory error:", e); }
   try { updateAllBadges(); } catch(e) { console.error("updateAllBadges error:", e); }
@@ -674,14 +690,11 @@ function initializeApp() {
     else if (typeof window !== "undefined" && typeof window.setPosReceiptDefaultUnofficial === "function") window.setPosReceiptDefaultUnofficial();
   } catch(e) {}
   
-  // Set mode badge in header
-  try { if (typeof updateModeBadge === "function") updateModeBadge(); } catch(e) {}
 
   // Set version in footer
   const vEl = document.getElementById("appVersion");
   if (vEl) {
-    const isLight = (typeof isLightMode === "function" && isLightMode());
-    vEl.innerText = isLight ? "v3.2.1 (Hafif & Hızlı Mod)" : "v3.2.1 (Standart Sürüm)";
+    vEl.innerText = "Bluepetshop · v3.3";
   }
 
   // Arka planda donmayı önleyen gecikmeli yükleme (Datalist ve Toptancı listeleri ana iş parçacığını bloke etmez)
@@ -690,14 +703,6 @@ function initializeApp() {
     try { populateAllProductDatalists(); } catch(e) {}
   }, 350);
 
-  // E-Tablo takvim başlıklarını arka planda otomatik yenile
-  setTimeout(() => {
-    try {
-      if (typeof sendToGoogleSheets === "function") {
-        sendToGoogleSheets({ action: "fix_calendar" });
-      }
-    } catch(e) {}
-  }, 2500);
 }
 
 function refreshGoogleSheetsCalendar() {
