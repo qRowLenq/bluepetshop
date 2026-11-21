@@ -25,7 +25,7 @@ function deductCartStock(items){
   return moves;
 }
 
-let pendingStockCheckout = null, stockApproval = null;
+let pendingStockCheckout = null, pendingStockSignature = null, stockApproval = null;
 function stockCartSignature() {
   return JSON.stringify({cart, requirements:stockShortages(cart, products)});
 }
@@ -36,29 +36,34 @@ function requireStockApproval(checkout) {
   if (!shortages.length) { pendingStockCheckout = null; renderStockWarning(); return false; }
   if (stockApproval === stockCartSignature()) { stockApproval = null; pendingStockCheckout = null; return false; }
   pendingStockCheckout = checkout;
+  pendingStockSignature = stockCartSignature();
   renderStockWarning();
-  focusCatalogSearch();
+  document.getElementById('approveStockCheckout')?.focus();
   return true;
 }
 function renderStockWarning() {
   const box = document.getElementById('stockCheckoutWarning');
   if (!box) return;
   const lines = stockShortages(cart, products);
-  box.hidden = !lines.length;
+  if (pendingStockCheckout && pendingStockSignature !== stockCartSignature()) {
+    pendingStockCheckout = null;
+  }
   box.replaceChildren();
-  if (!cart.length) pendingStockCheckout = null;
-  if (!lines.length) return;
-  const title = document.createElement('strong'); title.textContent = 'Stok yetersiz görünüyor'; box.append(title);
+  box.hidden = !pendingStockCheckout || !lines.length;
+  if (box.hidden) return;
+
+  const title = document.createElement('strong');
+  title.textContent = 'Stok farkı var. Satışa devam edilsin mi?';
+  box.append(title);
+  const count = n => n.toLocaleString('tr-TR', {maximumFractionDigits: 3});
   for (const line of lines) {
     const text = document.createElement('p');
-    text.textContent = `${line.name}: stokta ${line.stock}, sepette ${line.qty} adet.`; box.append(text);
+    text.textContent = `${line.name} — Stok: ${count(line.stock)} · Sepet: ${count(line.qty)} · Satış sonrası: ${count(line.stock - line.qty)} adet.`;
+    box.append(text);
   }
-  const hint = document.createElement('p');
-  hint.textContent = 'Barkod okutmaya devam edebilirsin. Onay verirsen güncel sepet işlenir; eksik miktar eksi stok olarak görünür.';
-  box.append(hint);
   if (pendingStockCheckout) {
     const approve = document.createElement('button'); approve.type = 'button'; approve.className = 'btn btn-warning btn-sm';
-    approve.id = 'approveStockCheckout'; approve.textContent = 'Güncel sepeti onayla ve devam et';
+    approve.id = 'approveStockCheckout'; approve.textContent = 'Eksi stokla devam et';
     approve.onclick = () => {
       const checkout = pendingStockCheckout;
       if (!checkout) return;
@@ -66,7 +71,7 @@ function renderStockWarning() {
       try { checkout(); } finally { stockApproval = null; renderStockWarning(); }
     };
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost btn-sm';
-    cancel.textContent = 'Satışı beklet'; cancel.onclick = () => { pendingStockCheckout = null; renderStockWarning(); focusCatalogSearch(); };
+    cancel.textContent = 'Sepete dön'; cancel.onclick = () => { pendingStockCheckout = null; renderStockWarning(); focusCatalogSearch(); };
     box.append(approve, cancel);
   }
 }
