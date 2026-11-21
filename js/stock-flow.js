@@ -25,55 +25,25 @@ function deductCartStock(items){
   return moves;
 }
 
-let pendingStockCheckout = null, pendingStockSignature = null, stockApproval = null;
-function stockCartSignature() {
-  return JSON.stringify({cart, requirements:stockShortages(cart, products)});
-}
-function requireStockApproval(checkout) {
+function requireStockApproval() {
   if (!cart.length) return false;
   const shortages = stockShortages(cart, products);
-  if (shortages.some(s => s.missing)) { toast('Sepette silinmiş bir ürün var. Ürünü sepetten kaldırın.', 'warning'); return true; }
-  if (!shortages.length) { pendingStockCheckout = null; renderStockWarning(); return false; }
-  if (stockApproval === stockCartSignature()) { stockApproval = null; pendingStockCheckout = null; return false; }
-  pendingStockCheckout = checkout;
-  pendingStockSignature = stockCartSignature();
-  renderStockWarning();
-  document.getElementById('approveStockCheckout')?.focus();
-  return true;
+  if (shortages.some(line => line.missing)) {
+    toast('Sepette silinmiş bir ürün var. Ürünü sepetten kaldırın.', 'warning');
+    return true;
+  }
+  if (shortages.length) {
+    const note = shortages.length === 1
+      ? 'Stok farkı: satış sonrası ' + (shortages[0].stock - shortages[0].qty).toLocaleString('tr-TR', {maximumFractionDigits: 3}) + ' adet.'
+      : 'Stok farkı: ' + shortages.length + ' ürün eksi stoğa geçiyor.';
+    toast(note, 'warning', 2200);
+  }
+  return false;
 }
+
 function renderStockWarning() {
   const box = document.getElementById('stockCheckoutWarning');
-  if (!box) return;
-  const lines = stockShortages(cart, products);
-  if (pendingStockCheckout && pendingStockSignature !== stockCartSignature()) {
-    pendingStockCheckout = null;
-  }
-  box.replaceChildren();
-  box.hidden = !pendingStockCheckout || !lines.length;
-  if (box.hidden) return;
-
-  const title = document.createElement('strong');
-  title.textContent = 'Stok farkı var. Satışa devam edilsin mi?';
-  box.append(title);
-  const count = n => n.toLocaleString('tr-TR', {maximumFractionDigits: 3});
-  for (const line of lines) {
-    const text = document.createElement('p');
-    text.textContent = `${line.name} — Stok: ${count(line.stock)} · Sepet: ${count(line.qty)} · Satış sonrası: ${count(line.stock - line.qty)} adet.`;
-    box.append(text);
-  }
-  if (pendingStockCheckout) {
-    const approve = document.createElement('button'); approve.type = 'button'; approve.className = 'btn btn-warning btn-sm';
-    approve.id = 'approveStockCheckout'; approve.textContent = 'Eksi stokla devam et';
-    approve.onclick = () => {
-      const checkout = pendingStockCheckout;
-      if (!checkout) return;
-      stockApproval = stockCartSignature();
-      try { checkout(); } finally { stockApproval = null; renderStockWarning(); }
-    };
-    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost btn-sm';
-    cancel.textContent = 'Sepete dön'; cancel.onclick = () => { pendingStockCheckout = null; renderStockWarning(); focusCatalogSearch(); };
-    box.append(approve, cancel);
-  }
+  if (box) box.hidden = true;
 }
 
 function stockDateDay(value) {
