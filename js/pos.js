@@ -754,9 +754,7 @@ function renderPosSalesHistory() {
             <button class="btn btn-outline btn-xs" style="border-color:#f59e0b; color:#b45309; font-weight:700; white-space:nowrap;" onclick="reopenTodayDailyClose()">
               ↩️ Düne Dön (${lastClosedRecord.date} Gününü Geri Aç)
             </button>
-            <button class="btn btn-ghost btn-xs" style="font-size:11px;" onclick="promptChangeBusinessDate()" title="Tarihi Değiştir">
-              📅 Tarih Ayarla
-            </button>
+            <button type="button" class="btn btn-ghost btn-xs" onclick="openSalesHistory()">Geçmiş satışlar</button>
           </div>
         </div>
       `;

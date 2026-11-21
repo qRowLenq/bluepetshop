@@ -256,12 +256,9 @@ function updateCustomerDropdown() {
 }
 
 // ── Date/Time Helpers (With Active Business Day Support) ──
+const storeCalendarFormatter = new Intl.DateTimeFormat('tr-TR', {timeZone:'Europe/Istanbul', day:'2-digit', month:'2-digit', year:'numeric'});
 function getRealCalendarDate() {
-  const d = new Date();
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}.${month}.${year}`;
+  return storeCalendarFormatter.format(new Date());
 }
 
 function getNextDayDateString(dateStr) {
@@ -287,43 +284,11 @@ function getPrevDayDateString(dateStr) {
 }
 
 function nowDate() {
-  if (window.activeBusinessDate) {
-    return window.activeBusinessDate;
-  }
-  const saved = localStorage.getItem("ps_active_business_date");
-  if (saved) {
-    window.activeBusinessDate = saved;
-    return saved;
-  }
   return getRealCalendarDate();
 }
 
 function nowTime() {
-  return new Date().toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' });
-}
-
-function promptChangeBusinessDate() {
-  const current = nowDate();
-  const real = getRealCalendarDate();
-  const input = prompt(`İşletme / Kasa Çalışma Gününü Değiştir:\n(Mevcut: ${current}, Gerçek Takvim: ${real})\n\nFormat: GG.AA.YYYY (Örn: 09.09.2026)`, current);
-  if (!input) return;
-  const trimmed = input.trim();
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(trimmed)) {
-    window.activeBusinessDate = trimmed;
-    localStorage.setItem("ps_active_business_date", trimmed);
-    if (typeof renderPosSalesHistory === "function") renderPosSalesHistory();
-    toast(`📅 Aktif çalışma günü değiştirildi: ${trimmed}`);
-  } else {
-    toast("Geçersiz tarih formatı! Lütfen GG.AA.YYYY formatında girin.", "error");
-  }
-}
-
-function resetBusinessDateToToday() {
-  const real = getRealCalendarDate();
-  window.activeBusinessDate = real;
-  localStorage.setItem("ps_active_business_date", real);
-  if (typeof renderPosSalesHistory === "function") renderPosSalesHistory();
-  toast(`🔄 Aktif çalışma günü gerçek takvim tarihine (${real}) sıfırlandı.`);
+  return new Date().toLocaleTimeString('tr-TR', {timeZone:'Europe/Istanbul', hour:'2-digit', minute:'2-digit'});
 }
 
 window.getRealCalendarDate = getRealCalendarDate;
@@ -331,5 +296,3 @@ window.getNextDayDateString = getNextDayDateString;
 window.getPrevDayDateString = getPrevDayDateString;
 window.nowDate = nowDate;
 window.nowTime = nowTime;
-window.promptChangeBusinessDate = promptChangeBusinessDate;
-window.resetBusinessDateToToday = resetBusinessDateToToday;

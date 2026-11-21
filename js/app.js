@@ -456,37 +456,26 @@ function completeDailyClose() {
     difference: diffNum 
   });
 
-  // GÜN SONU SONRASI OTOMATİK BİR SONRAKİ GÜNE GEÇİŞ (Yeni gün başlar: Örn: 8 Eylül -> 9 Eylül)
-  const nextDay = (typeof getNextDayDateString === "function") 
-    ? getNextDayDateString(today) 
-    : today;
-  window.activeBusinessDate = nextDay;
-  localStorage.setItem("ps_active_business_date", nextDay);
-
   // UI'ı anında güncelle
   if (typeof renderPosSalesHistory === "function") renderPosSalesHistory();
   renderDailyCloseModalView();
 
   closeModal("dailyCloseModal");
-  toast(`🏁 ${today} gün sonu kapatıldı! Kasa yeni güne (${nextDay}) geçti. Yeni satışlar ${nextDay} sütununa yazılacak.`, "success");
+  toast("Gün sonu kapatıldı (" + today + "). Kasa tarihi gece yarısı Türkiye saatine göre otomatik güncellenir.", "success");
 }
 
 function reopenTodayDailyClose() {
   // Geri açılacak gün: Son kapatılan gün sonu kaydı veya mevcut gün
-  const lastClosed = (window.dailyCloseRecords && window.dailyCloseRecords.length > 0) ? window.dailyCloseRecords[0] : null;
-  const targetDay = lastClosed ? lastClosed.date : ((typeof getPrevDayDateString === "function") ? getPrevDayDateString(nowDate()) : nowDate());
+  const targetDay = nowDate();
+  if (!(window.dailyCloseRecords || []).some(r => r.date === targetDay)) return;
 
-  if (!confirm(`⚠️ ${targetDay} tarihli gün sonunu iptal edip o güne geri dönmek istiyor musunuz?\n\nBu işlemle ${targetDay} gün sonu kaydı iptal edilir, kasa o güne geri döner ve satış yapmaya devam edebilirsiniz.`)) {
+  if (!confirm(targetDay + " tarihli gün sonu iptal edilsin mi?")) {
     return;
   }
 
   dailyCloseRecords = (window.dailyCloseRecords || dailyCloseRecords || []).filter(r => r.date !== targetDay);
   window.dailyCloseRecords = dailyCloseRecords;
   saveData();
-
-  // Aktif çalışma gününü eski güne geri al
-  window.activeBusinessDate = targetDay;
-  localStorage.setItem("ps_active_business_date", targetDay);
 
   // Google Sheets'e gün sonu iptali gönder
   sendToGoogleSheets({
@@ -497,14 +486,14 @@ function reopenTodayDailyClose() {
   if (typeof renderPosSalesHistory === "function") renderPosSalesHistory();
   renderDailyCloseModalView();
 
-  toast(`↩️ ${targetDay} gün sonu iptal edildi! Kasa ${targetDay} gününe geri döndü.`, "success");
+  toast(targetDay + " tarihli gün sonu iptal edildi. Kasa tarihi: " + nowDate(), "success");
 }
 
 function reopenDailyCloseById(closeId) {
   const rec = (window.dailyCloseRecords || dailyCloseRecords || []).find(r => r.id === closeId);
   if (!rec) return;
 
-  if (!confirm(`⚠️ ${rec.date} tarihli gün sonu kapanışını iptal edip ${rec.date} gününe geri dönmek istiyor musunuz?`)) {
+  if (!confirm(rec.date + " tarihli gün sonu iptal edilsin mi? Kasa tarihi değişmez.")) {
     return;
   }
 
@@ -512,10 +501,6 @@ function reopenDailyCloseById(closeId) {
   dailyCloseRecords = (window.dailyCloseRecords || dailyCloseRecords || []).filter(r => r.id !== closeId);
   window.dailyCloseRecords = dailyCloseRecords;
   saveData();
-
-  // Aktif çalışma gününü seçilen güne geri al
-  window.activeBusinessDate = targetDay;
-  localStorage.setItem("ps_active_business_date", targetDay);
 
   sendToGoogleSheets({
     action: "reopen_daily_close",
@@ -525,7 +510,7 @@ function reopenDailyCloseById(closeId) {
   if (typeof renderPosSalesHistory === "function") renderPosSalesHistory();
   renderDailyCloseModalView();
 
-  toast(`↩️ ${targetDay} tarihli gün sonu iptal edildi ve kasa ${targetDay} gününe geri döndü!`, "success");
+  toast(targetDay + " tarihli gün sonu iptal edildi. Kasa tarihi: " + nowDate(), "success");
 }
 
 // ── Backup System ──
@@ -668,10 +653,6 @@ function importData(event) {
       if (data.wasteRecords) { wasteRecords = data.wasteRecords; window.wasteRecords = data.wasteRecords; }
       if (Array.isArray(data.dailyCloseRecords)) { dailyCloseRecords = data.dailyCloseRecords; window.dailyCloseRecords = data.dailyCloseRecords; }
       if (Array.isArray(data.deletedProductIds)) localStorage.setItem("ps_deleted_product_ids",JSON.stringify(data.deletedProductIds));
-      if (data.activeBusinessDate && /^\d{2}\.\d{2}\.\d{4}$/.test(data.activeBusinessDate)) {
-        localStorage.setItem("ps_active_business_date", data.activeBusinessDate);
-        window.activeBusinessDate = data.activeBusinessDate;
-      }
       
       saveData();
       initializeApp();
