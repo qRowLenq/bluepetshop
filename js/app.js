@@ -531,11 +531,13 @@ function reopenDailyCloseById(closeId) {
 // ── Backup System ──
 function getFullReportSnapshot() {
   return {
+    backupVersion: 2,
     categories, products, customers, suppliers,
     orders, platformPendingOrders, deliveredOrders,
     salesHistory, expenses, manualDeficits, heldCarts,
     bundles, wasteRecords, dailyCloseRecords,
-    activeBusinessDate: localStorage.getItem('ps_active_business_date'),
+    activeBusinessDate: nowDate(),
+    deletedProductIds: JSON.parse(localStorage.getItem('ps_deleted_product_ids') || '[]'),
     reportDate: nowDate(),
     reportSource: window.aybarsDesktop ? 'Windows mağaza verisi' : 'Bluepetshop mağaza yedeği',
     financialOverview: typeof calculateDualFinancialOverview === 'function' ? calculateDualFinancialOverview() : null,
@@ -631,18 +633,23 @@ function importData(event) {
 
     try {
       if (!data || !Array.isArray(data.products) || !Array.isArray(data.salesHistory) || !Array.isArray(data.expenses)) throw Error("Ürün, satış ve gider listelerini içeren bir mağaza yedeği seçin.");
+      const arrays = ["categories","products","customers","suppliers","orders","platformPendingOrders","deliveredOrders","salesHistory","expenses","manualDeficits","heldCarts","bundles","wasteRecords","dailyCloseRecords","deletedProductIds"];
+      for (const key of arrays) {
+        if (Object.hasOwn(data,key) && !Array.isArray(data[key])) throw Error("Geçersiz yedek alanı: " + key);
+      }
+      const orderCount = (data.deliveredOrders || []).length;
       const after=Date.parse(data.exportDate || "");
-      if (!confirm("Bu işlem yalnızca bu tarayıcıdaki mağaza kayıtlarını seçilen yedekle değiştirir. Önce mevcut verileri yedekleyin.\n\nYedek: "+(Number.isFinite(after)?new Date(after).toLocaleString("tr-TR"):"tarih belirtilmedi")+"\n"+data.products.length+" ürün, "+data.salesHistory.length+" satış/iade kaydı, "+data.expenses.length+" gider.\n\nDevam edilsin mi?")) { event.target.value=""; return; }
-      if (Array.isArray(data.categories) && data.categories.length > 0) {
+      if (!confirm("Bu işlem yalnızca bu tarayıcıdaki mağaza kayıtlarını seçilen yedekle değiştirir. Önce mevcut verileri yedekleyin.\n\nYedek: "+(Number.isFinite(after)?new Date(after).toLocaleString("tr-TR"):"tarih belirtilmedi")+"\n"+data.products.length+" ürün, "+data.salesHistory.length+" satış/iade kaydı, "+data.expenses.length+" gider, "+orderCount+" teslim edilmiş sipariş.\n\nDevam edilsin mi?")) { event.target.value=""; return; }
+      if (Array.isArray(data.categories)) {
         categories = data.categories;
         window.categories = data.categories;
       }
-      if (Array.isArray(data.products) && data.products.length > 0) {
+      if (Array.isArray(data.products)) {
         data.products.forEach(p => {
           p.stock = (p.stock !== undefined && p.stock !== null && !isNaN(Number(p.stock))) ? Number(p.stock) : 0;
           p.cost = Number(p.cost) || 0;
           p.price = Number(p.price) || 0;
-          p.vatRate = Number(p.vatRate) || 20;
+          p.vatRate = p.vatRate == null ? 20 : Number(p.vatRate);
           if (!Array.isArray(p.batches)) p.batches = [];
         });
         products = data.products;
@@ -660,11 +667,21 @@ function importData(event) {
       if (data.bundles) { bundles = data.bundles; window.bundles = data.bundles; }
       if (data.wasteRecords) { wasteRecords = data.wasteRecords; window.wasteRecords = data.wasteRecords; }
       if (Array.isArray(data.dailyCloseRecords)) { dailyCloseRecords = data.dailyCloseRecords; window.dailyCloseRecords = data.dailyCloseRecords; }
-      if (data.activeBusinessDate && /^\d{2}\.\d{2}\.\d{4}$/.test(data.activeBusinessDate)) localStorage.setItem('ps_active_business_date', data.activeBusinessDate);
+      if (Array.isArray(data.deletedProductIds)) localStorage.setItem("ps_deleted_product_ids",JSON.stringify(data.deletedProductIds));
+      if (data.activeBusinessDate && /^\d{2}\.\d{2}\.\d{4}$/.test(data.activeBusinessDate)) {
+        localStorage.setItem("ps_active_business_date", data.activeBusinessDate);
+        window.activeBusinessDate = data.activeBusinessDate;
+      }
       
       saveData();
       initializeApp();
-      toast(`📥 Yedek başarıyla yüklendi! (${(window.products || []).length} ürün)`, "success");
+      const search = document.getElementById("historySearch");
+      if (search) search.value = "";
+      if (salesHistory.length && typeof openSalesHistory === "function") {
+        setHistoryPeriod("all");
+        openSalesHistory();
+      }
+      toast("Yedek yüklendi: " + products.length + " ürün, " + salesHistory.length + " satış/iade, " + orderCount + " teslimat.", "success");
       event.target.value = "";
     } catch(err) {
       toast("Yedek verisi işlenirken hata: " + err.message, "error");

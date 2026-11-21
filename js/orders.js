@@ -471,7 +471,7 @@ function renderDeliveredOrdersList() {
   container.innerHTML = "";
 
   if (deliveredOrders.length === 0) {
-    container.innerHTML = `<div class="empty-state">Geçmiş teslim kaydı yok.</div>`;
+    container.innerHTML = `<div class="empty-state">Teslimat arşivinde kayıt yok. Kasada kaydedilmiş satış ve iadeleri <button type="button" class="btn btn-outline btn-sm" onclick="openSalesHistory(); setHistoryPeriod(\'all\')">Satış Geçmişi</button> bölümünde görebilirsin.</div>`;
     return;
   }
   container.innerHTML = deliveredOrders.map(o => `
