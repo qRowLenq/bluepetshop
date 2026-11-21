@@ -42,6 +42,7 @@
     </div>
 
     <div class="header-actions">
+      <button type="button" class="btn btn-outline btn-sm" onclick="openBlueSheetsSettings()">E-Tablo Bağlantısı</button>
       <button class="btn btn-outline btn-sm" onclick="openSalesHistory()">Satış Geçmişi</button>
       <button class="btn btn-warning btn-sm" onclick="openDailyCloseModal()">🏁 Gün Sonu</button>
       <button class="btn btn-ghost btn-sm" onclick="exportData()">💾 Yedek Al</button>
@@ -2133,6 +2134,7 @@
 <script src="js/products_catalog.js?v=20260920_perf_turbo_v321"></script>
   <script src="js/state.js?v=20261121_shop1"></script>
   <script src="js/store-storage.js?v=20261121_shop1"></script>
+  <script src="js/sheets-connection.js?v=20261121_sync1"></script>
   <script src="js/ui.js?v=20261121_shop1"></script>
   <script src="js/stock-flow.js?v=20261121_shop1"></script>
   <script src="js/pos.js?v=20261121_shop1"></script>
@@ -2151,6 +2153,7 @@
   <script src="js/excel.js?v=20261121_shop1"></script>
   <script src="js/panel-tools.js?v=20261121_shop1"></script>
   <script src="js/app.js?v=20261121_shop1"></script>
+<dialog id="blueSheetsDialog" class="panel-tool-dialog"><h2>E-Tablo Bağlantısı</h2><form onsubmit="saveBlueSheetsSettings(event)"><label>Google Apps Script /exec adresi<input id="blueSheetsEndpoint" type="url" inputmode="url" autocomplete="off" required></label><p id="blueSheetsMessage" role="status"></p><button type="submit" class="btn btn-primary">Bağlantıyı kaydet</button> <button type="button" class="btn btn-outline" onclick="this.closest('dialog').close()">Kapat</button></form></dialog>
 </body>
 
 </html>
