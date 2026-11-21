@@ -57,5 +57,18 @@
       window.toast('E-Tablo’ya ulaşılamadı. İşlem kasada kayıtlı kaldı; yeniden satış girmeyin.', 'warning');
     });
   };
+  document.addEventListener('DOMContentLoaded', () => {
+    const target = new URLSearchParams(location.hash.slice(1)).get('sheets-setup');
+    if (!target) return;
+    // Remove setup data from the address bar; it is never saved without confirmation.
+    history.replaceState(history.state, '', location.pathname + location.search);
+    try {
+      const endpoint = validateEndpoint(target);
+      window.openBlueSheetsSettings();
+      get('blueSheetsEndpoint').value = endpoint;
+      get('blueSheetsMessage').textContent = 'Mağaza bağlantısı hazır. Etkinleştirmek için Bağlantıyı kaydet düğmesine bas.';
+    } catch (_) {
+      window.toast('Kurulum bağlantısındaki E-Tablo adresi geçersiz.', 'warning');
+    }
+  });
 })();
-
